@@ -11,6 +11,7 @@ In this paper, we propose a deep learning framework, FMDST model, which leverage
 ![My Image](overall.png)
 
 ## Project Structure
+```
 FMDST/
 ├── Ablation_model/                                     # Contains all ablation models.
 ├── Data_Preprocessing/                                 # Scripts for data processing and dataset creation.
@@ -27,6 +28,7 @@ FMDST/
 ├── main.py                                             # Main entry point.
 ├── train_evaluate.py                                   # Code for model training and evaluation.
 └── README.md                                           # Project documentation.
+```                                      # Project documentation.
 
 ## Dataset
 

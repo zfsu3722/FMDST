@@ -16,14 +16,19 @@ FMDST/
 ├── Ablation_model/                                     # Contains all ablation models.
 ├── Data_Preprocessing/                                 # Scripts for data processing and dataset creation.
 │   ├── data_clean/                                     # Cleaning missing and abnormal values.
+│   ├── AVG/                                            # Calculate the average of multiple results.
+│   ├── create_miss_data/                               # Create missing data.
 │   ├── data_preprocess/                                # Pre-generation of train/val/test input sequences.
 │   └── MIC/                                            # feature selection and visualization using MIC.
+├── experimental_results/                             # experimental_results.
 ├── model/                                              # Implementation of the proposed and baseline models.
 ├── model_save/                                         # Saved model files.
+├── SDWPF/                                              # ST_ReP data.
 ├── sdwpf_kddcup/                                       # Dataset files.
 │   ├── sdwpf_245days_v1.csv/                           # Raw wind power data.
 │   ├── sdwpf_baidukddcup2022_turb_location.csv/        # Relative locations of all wind turbines..
 │   └── Cleaned_data_with_power.csv/                    # Data with missing and outlier values corrected.
+├── ST_ReP/                                             # ST-ReP model and data preprocessing and running functions.
 ├── AVG.py                                              # Script to compute average results over multiple runs.
 ├── main.py                                             # Main entry point.
 ├── train_evaluate.py                                   # Code for model training and evaluation.

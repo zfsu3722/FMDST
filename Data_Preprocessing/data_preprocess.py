@@ -136,16 +136,17 @@ def validate_and_correct_samples(data):
     a = 0
     b = 0
     for index, row in data.iterrows():
+        # """
         if not (-720 <= row[Ndir] <= 720):
             j = j + 1
             a = a + 1
-            # """
+            
             if row[Ndir] < -720:
                 data.at[index, Ndir] = np.nan
             if row[Ndir] > 720:
                 data.at[index, Ndir] = np.nan
             # return False
-            # """
+        # """
         if not (-180 <= row[Wdir] <= 180):
             j = j + 1
             z = z + 1
@@ -154,7 +155,7 @@ def validate_and_correct_samples(data):
             if row[Wdir] > 180:
                 data.at[index, Wdir] = np.nan
             # return False
-        # 检查风速和有功功率的关系
+        # """# 检查风速和有功功率的关系
         if row[Patv] <= 0 and row[Wspd] > 2.5:
             j = j + 1
             k = k + 1
@@ -169,7 +170,7 @@ def validate_and_correct_samples(data):
             data.at[index, Pab2] = np.nan
             data.at[index, Pab3] = np.nan
             # return False
-
+        # """
         if row[Etmp] > 60 or row[Etmp] < -21:
             j = j + 1
             m = m + 1
@@ -297,12 +298,131 @@ def build_sample(data, his=60, future=60, batch_size=32):
 
     return train_loader, valid_loader, test_loader
 
+# 微调用于季节性的参数划分
+def build_sample_season(data, his=60, future=60, batch_size=32):
+    lenght = len(data[1])
+    site = len(data)
+    sample = []
+    Y = []
+    i = 0
+
+    while i < lenght - future - his - his + 10:
+        sub_sample = []
+        sub_y = []
+        valid = True  # 标记当前窗口有用
+        j = 1
+        while j <= site:
+            # for k in range(i, i + his+1+future):
+            for k in range(i, i + his + future):
+                if not is_null_sample(data[j][k]):
+                    valid = False
+                    break
+            if not valid:
+                break
+            columns_to_select = [3] + [4] + [5] + [6] + [7] + [8] + [12]
+            # columns_to_select = [3]  + [7] + [8]  + [12]
+            sub_sample_x = np.array(data[j][i:i + his, columns_to_select].astype(np.float32))
+            sub_sample.append(sub_sample_x)
+            future_data = np.array(data[j][i + his:i + his + future, columns_to_select].astype(np.float32))
+            # 要保留的列索引（注意：Python 索引从 0 开始）
+            # future_data = future_data[5::6 ]
+            # future_data = future_data[:]
+            sub_y.append(future_data)
+            j = j + 1
+        if valid:
+            sub_sample = np.stack(sub_sample, axis=0)
+            sub_y = np.stack(sub_y, axis=0)
+            sample.append(sub_sample)
+            Y.append(sub_y)
+        i = i + 1
+    sample = np.stack(sample, axis=0)
+    Y = np.stack(Y, axis=0)
+
+    del data
+
+    sample = np.array(sample)
+    Y = np.array(Y)
+
+    samples_x = torch.tensor(sample, dtype=torch.float32)
+    samples_y = torch.tensor(Y, dtype=torch.float32)
+    print(samples_x.shape)
+    del sample, Y
+
+    total_len = len(samples_x)
+
+    # 1. 主训练集：前 60%
+    train_end = int(total_len * 0.6)
+    train_x = samples_x[:train_end]
+    train_y = samples_y[:train_end]
+
+    # 2. 微调训练集：60% ~ 70% （10%）
+    finetune_end = int(total_len * 0.7)
+    season_train_x = samples_x[train_end:finetune_end]
+    season_train_y = samples_y[train_end:finetune_end]
+
+    # 3. 评估集（验证 + 测试）：最后 30% （70% ~ 100%）
+    eval_start = finetune_end  # 即 70%
+    eval_x = samples_x[eval_start:]
+    eval_y = samples_y[eval_start:]
+
+    # ✅ 安全：打乱这最后 30%（因为全部在训练和微调之后）
+    indices_eval = torch.randperm(eval_x.size(0))
+    eval_x = eval_x[indices_eval]
+    eval_y = eval_y[indices_eval]
+
+    # 对半分：15% 验证，15% 测试
+    half_eval = len(eval_x) // 2
+    val_x, test_x = eval_x[:half_eval], eval_x[half_eval:]
+    val_y, test_y = eval_y[:half_eval], eval_y[half_eval:]
+
+    # 删除大张量以释放内存
+    del samples_x, samples_y, eval_x, eval_y
+
+    # 创建数据集
+    train_dataset = TensorDataset(train_x, train_y)
+    valid_dataset = TensorDataset(val_x, val_y)
+    test_dataset = TensorDataset(test_x, test_y)
+    season_train_dataset = TensorDataset(season_train_x, season_train_y)
+
+    # 释放张量内存
+    del train_x, train_y, val_x, val_y, test_x, test_y
+    del season_train_x, season_train_y
+
+    # 确保目录存在
+    save_directory = '../clean_power_his60_future6_7features_season'
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+
+    # 保存数据集
+    torch.save(train_dataset.tensors, os.path.join(save_directory, 'train_dataset.pt'))
+    torch.save(valid_dataset.tensors, os.path.join(save_directory, 'valid_dataset.pt'))
+    torch.save(test_dataset.tensors, os.path.join(save_directory, 'test_dataset.pt'))
+    torch.save(season_train_dataset.tensors, os.path.join(save_directory, 'season_train_dataset.pt'))
+
+
+    # 保存归一化向量 (Max 和 Min)
+    torch.save(Max, os.path.join(save_directory, 'max_values.pt'))
+    torch.save(Min, os.path.join(save_directory, 'min_values.pt'))
+
+    # 创建 DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    season_train_loader = DataLoader(season_train_dataset, batch_size=batch_size, shuffle=False)
+
+
+    return train_loader, valid_loader, test_loader, season_train_loader
+
+
 if __name__ == '__main__':
-    # 创建时间窗口数据，创建的是历史60步，未来60步的数据，但是只是使用部分未来时间步
+
+    # 创建时间窗口数据，创建的是历史60步，未来6步的数据，但是只是使用部分未来时间步
+    # dir_data = "../sdwpf_kddcup/Cleaned_data_with_power_original_data_with_missing.csv"
     dir_data = "../sdwpf_kddcup/Cleaned_data_with_power.csv"
     dir_site = "../sdwpf_kddcup/sdwpf_baidukddcup2022_turb_location.csv"
     dict, site_adj, Max, Min = creat_dict(dir_data=dir_data, dir_site=dir_site, site=134)
     train_loader, valid_loader, test_loader = build_sample(dict, his=60, future=60, batch_size=32)
+    # train_loader, valid_loader, test_loader, season_train_loader = build_sample_season(dict, his=60, future=6, batch_size=32)
     # 设备配置
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -310,3 +430,5 @@ if __name__ == '__main__':
         break  # 获取第一个批次
     print(inputs.shape)
     print(targets.shape)
+
+

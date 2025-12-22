@@ -263,12 +263,12 @@ if __name__ == "__main__":
     # 此程序尽可能一步一步的运行
 
     # 1、清理机舱和叶片的异常缺失，并处理一下功率为负的变为0
-    dir_data = "./sdwpf_kddcup/sdwpf_245days_v1.csv"
+    dir_data = "../sdwpf_kddcup/original_data_with_missing.csv"
     dict= creat_dict_Ndir_Pab(dir_data=dir_data, site=134)
 
     # 2、处理周期性的风向和机舱方向数据，将相对风向变为绝对风向
-    dir_data = "./sdwpf_kddcup/sdwpf_245days_v1_Ndir_pab_processed.csv"
-    output_file = './sdwpf_kddcup/sdwpf_245days_v1_Ndir_pab_ababsolute_Wdir_processed.csv'
+    dir_data = "../sdwpf_kddcup/original_data_with_missing_Ndir_pab_processed.csv"
+    output_file = '../sdwpf_kddcup/original_data_with_missing_Ndir_pab_ababsolute_Wdir_processed.csv'
 
     # 加载数据
     df = pd.read_csv(dir_data)
@@ -281,16 +281,16 @@ if __name__ == "__main__":
     print(f"处理完成，已保存至 {output_file}")
 
     # 3、处理风速、风向、内外温度的异常缺失进行聚类插补
-    dir_data = './sdwpf_kddcup/sdwpf_245days_v1_Ndir_pab_ababsolute_Wdir_processed.csv'
-    dir_site = "./sdwpf_kddcup/sdwpf_baidukddcup2022_turb_location.csv"
-    output_file = './sdwpf_kddcup/No_power_clean_data_group_imputation.csv'
+    dir_data = '../sdwpf_kddcup/original_data_with_missing_Ndir_pab_ababsolute_Wdir_processed.csv'
+    dir_site = "../sdwpf_kddcup/sdwpf_baidukddcup2022_turb_location.csv"
+    output_file = '../sdwpf_kddcup/No_power_clean_data_group_imputation_original_data_with_missing.csv'
 
     process_all_turbines_by_group(dir_data, output_file, dir_site, num_groups=10)
 
 
     # 3、最后单独处理一下功率的数据
-    input_file = './sdwpf_kddcup/No_power_clean_data_group_imputation.csv'
-    output_file = './sdwpf_kddcup/Cleaned_data_with_power.csv'
-    site_file = "./sdwpf_kddcup/sdwpf_baidukddcup2022_turb_location.csv"
+    input_file = '../sdwpf_kddcup/No_power_clean_data_group_imputation_original_data_with_missing.csv'
+    output_file = '../sdwpf_kddcup/Cleaned_data_with_power_original_data_with_missing.csv'
+    site_file = "../sdwpf_kddcup/sdwpf_baidukddcup2022_turb_location.csv"
 
     process_power_data_only(input_file, output_file, site_file, num_groups=10)

@@ -22,8 +22,11 @@ class FMDST(nn.Module):
         )
 
         # 加载预训练权重（路径根据你的实际情况调整）
-        tcn_weight_path = "model_save/Power_Pred_TCN_Transformer_his60_Pred1-6_134site_7feature_best_model.pth"
-        lstm_weight_path = "model_save/Power_Pred_LSTM_Transformer_his60_Pred1-6_134site_7feature_best_model.pth"
+        tcn_weight_path = "model_save/Power_Pred_TCN_Transformer_his60_Pred60_134site_7feature_best_model.pth"
+        lstm_weight_path = "model_save/Power_Pred_LSTM_Transformer_his60_Pred60_134site_7feature_best_model.pth"
+
+        # tcn_weight_path = "model_save/Power_Pred_TCN_Transformer_his60_Pred6_134site_7feature_Season_best_finetuned.pth"
+        # lstm_weight_path = "model_save/Power_Pred_LSTM_Transformer_his60_Pred6_134site_7feature_Season_best_finetuned.pth"
 
         # 加载权重（注意 map_location 的使用，以防 GPU/CPU 不一致）
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

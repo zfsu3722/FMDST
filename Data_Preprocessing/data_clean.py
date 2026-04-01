@@ -200,6 +200,11 @@ def process_power_data_only(input_file, output_file, site_file, num_groups=10):
 
     # Step 1: 读取数据
     data = pd.read_csv(input_file)
+
+    print("原始 Patv 缺失数量（NaN）:", data['Patv'].isna().sum())
+    print("原始 Patv 中 0 的数量:", (data['Patv'] == 0).sum())
+    print("原始 Patv 中负值数量:", (data['Patv'] < 0).sum())
+
     data_site = pd.read_csv(site_file)
 
     # Step 2: 按地理距离聚类分组

@@ -1,12 +1,11 @@
 import torch
 import torch.nn as nn
+from Newest_Ablation_model.TCN_Transformer import TCN_Transformer
+from Newest_Ablation_model.LSTM_Transformer import LSTM_Transformer
 
-# 假设你已经定义了这两个模型类
-from model.TCN_Transformer import TCN_Transformer
-from model.LSTM_Transformer import LSTM_Transformer
 
 class FMDST(nn.Module):
-    def __init__(self, input_dim=7, output_dim=1, site=134, his=60):
+    def __init__(self, input_dim=7, output_dim=12, site=134, his=60):
         super(FMDST, self).__init__()
 
         # 定义第一个子模型：TCN + 双 Transformer
@@ -22,11 +21,8 @@ class FMDST(nn.Module):
         )
 
         # 加载预训练权重（路径根据你的实际情况调整）
-        tcn_weight_path = "model_save/Power_Pred_TCN_Transformer_his60_Pred60_134site_7feature_best_model.pth"
-        lstm_weight_path = "model_save/Power_Pred_LSTM_Transformer_his60_Pred60_134site_7feature_best_model.pth"
-
-        # tcn_weight_path = "model_save/Power_Pred_TCN_Transformer_his60_Pred6_134site_7feature_Season_best_finetuned.pth"
-        # lstm_weight_path = "model_save/Power_Pred_LSTM_Transformer_his60_Pred6_134site_7feature_Season_best_finetuned.pth"
+        tcn_weight_path = "model_save/Power_Pred_TCN_Transformer_his60_Pred12_134site_7feature_best_model.pth"
+        lstm_weight_path = "model_save/Power_Pred_LSTM_Transformer_his60_Pred12_134site_7feature_best_model.pth"
 
         # 加载权重（注意 map_location 的使用，以防 GPU/CPU 不一致）
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,7 +38,9 @@ class FMDST(nn.Module):
         # 可学习融合权重矩阵：每个站点一个权重（例如 sigmoid 归一化）
         # self.weight_matrix = nn.Parameter(torch.rand(site, output_dim))
         # 每个站点一个可学习融合权重，初始化为均匀分布或随机值
-        self.site_weights = nn.Parameter(torch.rand(site))  # shape: (134,)
+        self.site_weights = nn.Parameter(torch.rand(site,output_dim))  # shape: (134,)
+
+
 
     def forward(self, x):
         """
@@ -58,9 +56,12 @@ class FMDST(nn.Module):
         weights = torch.sigmoid(self.site_weights)  # shape: (134, )
 
         # 扩展维度以便广播相乘
-        weights = weights[None, :, None]  # shape: (1, 134, 1) -> 广播到 (B, 134, F)
+        weights = weights[None, :, :]  # shape: (1, 134, 1) -> 广播到 (B, 134, F)
 
         # 融合输出
         fused_output = weights * tcn_out + (1 - weights) * lstm_out  # shape: (B, 134, F)
 
         return fused_output
+
+
+

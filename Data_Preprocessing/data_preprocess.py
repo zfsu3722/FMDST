@@ -203,21 +203,18 @@ def build_sample(data, his=60, future=60, batch_size=32):
         valid = True  # 标记当前窗口有用
         j = 1
         while j <= site:
-            # for k in range(i, i + his+1+future):
+            # 检查窗口内所有数据点是否有效
             for k in range(i, i + his + future):
                 if not is_null_sample(data[j][k]):
                     valid = False
                     break
             if not valid:
                 break
-            columns_to_select = [3] + [4] + [5]+ [6] + [7] + [8] + [12]
-            # columns_to_select = [3]  + [7] + [8]  + [12]
+            columns_to_select = [3, 4, 5, 6, 7, 8, 12]  # 选择7个特征
+            # columns_to_select = [3, 4, 5,12]
             sub_sample_x = np.array(data[j][i:i + his, columns_to_select].astype(np.float32))
             sub_sample.append(sub_sample_x)
-            future_data = np.array(data[j][i + his:i + his + future, columns_to_select].astype(np.float32))
-            # 要保留的列索引（注意：Python 索引从 0 开始）
-            # future_data = future_data[5::6 ]
-            # future_data = future_data[:]
+            future_data = np.array(data[j][i + his:i + his + future, [columns_to_select[-1]]].astype(np.float32))
             sub_y.append(future_data)
             j = j + 1
         if valid:
@@ -226,58 +223,50 @@ def build_sample(data, his=60, future=60, batch_size=32):
             sample.append(sub_sample)
             Y.append(sub_y)
         i = i + 1
+
     sample = np.stack(sample, axis=0)
     Y = np.stack(Y, axis=0)
-
     del data
 
-    sample = np.array(sample)
-    Y = np.array(Y)
     # 将数据转换为 PyTorch Tensors
     samples_x = torch.tensor(sample, dtype=torch.float32)
     samples_y = torch.tensor(Y, dtype=torch.float32)
-    print(samples_x.shape)
+    print(f"总样本形状: {samples_x.shape}")
     del sample, Y
 
-    # 假设 samples_x 和 samples_y 是已经定义好的输入特征和目标变量
-    # indices = np.random.permutation(len(samples_x))
+    # 按时间顺序划分数据集（不打乱）
+    total_samples = len(samples_x)
+    train_end = int(total_samples * 0.7)  # 前70%作为训练集
+    val_end = int(total_samples * 0.85)  # 接下来15%作为验证集
 
-    # 打乱后的索引用于重新排列 samples_x 和 samples_y
-    # samples_x = samples_x[indices]
-    # samples_y = samples_y[indices]
+    # 训练集（时间最早的部分）
+    train_x = samples_x[:train_end]
+    train_y = samples_y[:train_end]
 
-    train_x = samples_x[:int((len(samples_x) * 0.7))]
-    train_y = samples_y[:int((len(samples_y) * 0.7))]
+    # 验证集（中间部分）
+    val_x = samples_x[train_end:val_end]
+    val_y = samples_y[train_end:val_end]
 
-    remaining_x = samples_x[int((len(samples_x) * 0.7)):]
-    remaining_y = samples_y[int((len(samples_y) * 0.7)):]
-    # 假设 samples_x 和 samples_y 是已经定义好的输入特征和目标变量
-    indices = np.random.permutation(len(remaining_x))
+    # 测试集（时间最晚的部分）
+    test_x = samples_x[val_end:]
+    test_y = samples_y[val_end:]
 
-    # 打乱后的索引用于重新排列 samples_x 和 samples_y
-    remaining_x = remaining_x[indices]
-    remaining_y = remaining_y[indices]
-
-    val_x = remaining_x[:int((len(remaining_x) * 0.33333))]
-    test_x = remaining_x[int((len(remaining_x) * 0.33333)):int((len(remaining_x) * 0.66666))]
-
-    val_y = remaining_y[:int((len(remaining_y) * 0.33333))]
-    test_y = remaining_y[int((len(remaining_y) * 0.33333)):int((len(remaining_y) * 0.66666))]
-    # 保留部分可以用于验证组合实验
-    test_x_conbination = remaining_x[int((len(remaining_x) * 0.66666)):]
-    test_y_conbination = remaining_y[int((len(remaining_y) * 0.66666)):]
+    print(f"训练集样本数: {len(train_x)}")
+    print(f"验证集样本数: {len(val_x)}")
+    print(f"测试集样本数: {len(test_x)}")
 
     # 删除不再需要的数据以释放内存
-    del samples_x, samples_y, remaining_x, remaining_y
+    del samples_x, samples_y
+
     # 创建数据集
     train_dataset = TensorDataset(train_x, train_y)
     valid_dataset = TensorDataset(val_x, val_y)
     test_dataset = TensorDataset(test_x, test_y)
-    test_dataset_conbination = TensorDataset(test_x_conbination, test_y_conbination)
-    del train_x, val_x, test_x, train_y, val_y, test_y, test_x_conbination, test_y_conbination
+
+    del train_x, val_x, test_x, train_y, val_y, test_y
 
     # 确保目录存在
-    save_directory = '../clean_power_his60_future60_7features'
+    save_directory = '../clean_power_his60_future6_7features'
     if not os.path.exists(save_directory):
         os.makedirs(save_directory)
 
@@ -285,16 +274,16 @@ def build_sample(data, his=60, future=60, batch_size=32):
     torch.save(train_dataset.tensors, os.path.join(save_directory, 'train_dataset.pt'))
     torch.save(valid_dataset.tensors, os.path.join(save_directory, 'valid_dataset.pt'))
     torch.save(test_dataset.tensors, os.path.join(save_directory, 'test_dataset.pt'))
-    torch.save(test_dataset_conbination.tensors, os.path.join(save_directory, 'test_dataset_conbination.pt'))
 
     # 保存归一化向量 (Max 和 Min)
     torch.save(Max, os.path.join(save_directory, 'max_values.pt'))
     torch.save(Min, os.path.join(save_directory, 'min_values.pt'))
+    torch.save(site_adj, os.path.join(save_directory, 'adj_matrix.pt'))
 
     # 创建 DataLoader
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)  # 训练集可以shuffle
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)  # 验证集不shuffle
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # 测试集不shuffle
 
     return train_loader, valid_loader, test_loader
 
@@ -312,21 +301,16 @@ def build_sample_season(data, his=60, future=60, batch_size=32):
         valid = True  # 标记当前窗口有用
         j = 1
         while j <= site:
-            # for k in range(i, i + his+1+future):
             for k in range(i, i + his + future):
                 if not is_null_sample(data[j][k]):
                     valid = False
                     break
             if not valid:
                 break
-            columns_to_select = [3] + [4] + [5] + [6] + [7] + [8] + [12]
-            # columns_to_select = [3]  + [7] + [8]  + [12]
+            columns_to_select = [3, 4, 5, 6, 7, 8, 12]
             sub_sample_x = np.array(data[j][i:i + his, columns_to_select].astype(np.float32))
             sub_sample.append(sub_sample_x)
             future_data = np.array(data[j][i + his:i + his + future, columns_to_select].astype(np.float32))
-            # 要保留的列索引（注意：Python 索引从 0 开始）
-            # future_data = future_data[5::6 ]
-            # future_data = future_data[:]
             sub_y.append(future_data)
             j = j + 1
         if valid:
@@ -335,58 +319,55 @@ def build_sample_season(data, his=60, future=60, batch_size=32):
             sample.append(sub_sample)
             Y.append(sub_y)
         i = i + 1
+
     sample = np.stack(sample, axis=0)
     Y = np.stack(Y, axis=0)
-
     del data
 
-    sample = np.array(sample)
-    Y = np.array(Y)
-
+    # 将数据转换为 PyTorch Tensors
     samples_x = torch.tensor(sample, dtype=torch.float32)
     samples_y = torch.tensor(Y, dtype=torch.float32)
-    print(samples_x.shape)
+    print(f"总样本形状: {samples_x.shape}")
     del sample, Y
 
     total_len = len(samples_x)
 
-    # 1. 主训练集：前 60%
+    # 按时间顺序划分数据集
+    # 1. 主训练集：前 60%（时间最早的部分）
     train_end = int(total_len * 0.6)
     train_x = samples_x[:train_end]
     train_y = samples_y[:train_end]
 
-    # 2. 微调训练集：60% ~ 70% （10%）
+    # 2. 微调训练集：60% ~ 70%（接下来的10%）
     finetune_end = int(total_len * 0.7)
     season_train_x = samples_x[train_end:finetune_end]
     season_train_y = samples_y[train_end:finetune_end]
 
-    # 3. 评估集（验证 + 测试）：最后 30% （70% ~ 100%）
-    eval_start = finetune_end  # 即 70%
-    eval_x = samples_x[eval_start:]
-    eval_y = samples_y[eval_start:]
+    # 3. 验证集：70% ~ 85%（接下来15%）
+    val_end = int(total_len * 0.85)
+    val_x = samples_x[finetune_end:val_end]
+    val_y = samples_y[finetune_end:val_end]
 
-    # ✅ 安全：打乱这最后 30%（因为全部在训练和微调之后）
-    indices_eval = torch.randperm(eval_x.size(0))
-    eval_x = eval_x[indices_eval]
-    eval_y = eval_y[indices_eval]
+    # 4. 测试集：85% ~ 100%（最后15%，时间最晚的部分）
+    test_x = samples_x[val_end:]
+    test_y = samples_y[val_end:]
 
-    # 对半分：15% 验证，15% 测试
-    half_eval = len(eval_x) // 2
-    val_x, test_x = eval_x[:half_eval], eval_x[half_eval:]
-    val_y, test_y = eval_y[:half_eval], eval_y[half_eval:]
+    print(f"主训练集样本数: {len(train_x)}")
+    print(f"微调训练集样本数: {len(season_train_x)}")
+    print(f"验证集样本数: {len(val_x)}")
+    print(f"测试集样本数: {len(test_x)}")
 
-    # 删除大张量以释放内存
-    del samples_x, samples_y, eval_x, eval_y
+    # 删除不再需要的数据以释放内存
+    del samples_x, samples_y
 
     # 创建数据集
     train_dataset = TensorDataset(train_x, train_y)
+    season_train_dataset = TensorDataset(season_train_x, season_train_y)
     valid_dataset = TensorDataset(val_x, val_y)
     test_dataset = TensorDataset(test_x, test_y)
-    season_train_dataset = TensorDataset(season_train_x, season_train_y)
 
     # 释放张量内存
-    del train_x, train_y, val_x, val_y, test_x, test_y
-    del season_train_x, season_train_y
+    del train_x, train_y, season_train_x, season_train_y, val_x, val_y, test_x, test_y
 
     # 确保目录存在
     save_directory = '../clean_power_his60_future6_7features_season'
@@ -395,23 +376,269 @@ def build_sample_season(data, his=60, future=60, batch_size=32):
 
     # 保存数据集
     torch.save(train_dataset.tensors, os.path.join(save_directory, 'train_dataset.pt'))
+    torch.save(season_train_dataset.tensors, os.path.join(save_directory, 'season_train_dataset.pt'))
     torch.save(valid_dataset.tensors, os.path.join(save_directory, 'valid_dataset.pt'))
     torch.save(test_dataset.tensors, os.path.join(save_directory, 'test_dataset.pt'))
-    torch.save(season_train_dataset.tensors, os.path.join(save_directory, 'season_train_dataset.pt'))
-
 
     # 保存归一化向量 (Max 和 Min)
     torch.save(Max, os.path.join(save_directory, 'max_values.pt'))
     torch.save(Min, os.path.join(save_directory, 'min_values.pt'))
 
     # 创建 DataLoader
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-    season_train_loader = DataLoader(season_train_dataset, batch_size=batch_size, shuffle=False)
-
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)  # 主训练集可以shuffle
+    season_train_loader = DataLoader(season_train_dataset, batch_size=batch_size, shuffle=False)  # 微调训练集不shuffle
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)  # 验证集不shuffle
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # 测试集不shuffle
 
     return train_loader, valid_loader, test_loader, season_train_loader
+
+# 差分验证和测试
+def build_sample_diffblock(data, his=60, future=24, batch_size=32):
+    lenght = len(data[1])
+    site = len(data)
+    sample = []
+    Y = []
+    i = 0
+
+    while i < lenght - future - his - his:
+        sub_sample = []
+        sub_y = []
+        valid = True  # 标记当前窗口有用
+        j = 1
+        while j <= site:
+            # 检查窗口内所有数据点是否有效
+            for k in range(i, i + his + future):
+                if not is_null_sample(data[j][k]):
+                    valid = False
+                    break
+            if not valid:
+                break
+            columns_to_select = [3, 4, 5, 6, 7, 8, 12]  # 选择7个特征
+            sub_sample_x = np.array(data[j][i:i + his, columns_to_select].astype(np.float32))
+            sub_sample.append(sub_sample_x)
+            future_data = np.array(data[j][i + his:i + his + future, [columns_to_select[-1]]].astype(np.float32))
+            sub_y.append(future_data)
+            j = j + 1
+        if valid:
+            sub_sample = np.stack(sub_sample, axis=0)
+            sub_y = np.stack(sub_y, axis=0)
+            sample.append(sub_sample)
+            Y.append(sub_y)
+        i = i + 1
+
+    sample = np.stack(sample, axis=0)
+    Y = np.stack(Y, axis=0)
+    del data
+
+    # 将数据转换为 PyTorch Tensors
+    samples_x = torch.tensor(sample, dtype=torch.float32)
+    samples_y = torch.tensor(Y, dtype=torch.float32)
+    print(f"总样本形状: {samples_x.shape}")
+    del sample, Y
+
+    total_samples = len(samples_x)
+
+    # 训练集：前 70%
+    train_end = int(total_samples * 0.7)
+    train_x = samples_x[:train_end-his]
+    train_y = samples_y[:train_end-his]
+
+    # 剩余部分（30%）用于验证和测试
+    remaining_x = samples_x[train_end:]
+    remaining_y = samples_y[train_end:]
+    remaining_count = len(remaining_x)
+    print(f"测试和验证样本可用数量: {remaining_count}")
+
+    # 将剩余部分划分为 10 个不相交的连续块
+    block_size = remaining_count // 10  # 向下取整，确保不重叠
+    # 如果不能整除，最后几个样本会被丢弃（可选：也可分配给最后一块，但为严格不相交，这里截断）
+    usable_count = block_size * 10
+    remaining_x = remaining_x[:usable_count]
+    remaining_y = remaining_y[:usable_count]
+
+    # 重塑为 (10, block_size, ...)
+    val_blocks_x = []
+    val_blocks_y = []
+    test_blocks_x = []
+    test_blocks_y = []
+
+    for idx in range(10):
+        start = idx * block_size
+        end = start + block_size
+        block_x = remaining_x[start:end-his]
+        block_y = remaining_y[start:end-his]
+        if idx % 2 == 0:  # 0,2,4,6,8 → 验证集
+            val_blocks_x.append(block_x)
+            val_blocks_y.append(block_y)
+        else:  # 1,3,5,7,9 → 测试集
+            test_blocks_x.append(block_x)
+            test_blocks_y.append(block_y)
+
+    # 合并所有验证块和测试块
+    val_x = torch.cat(val_blocks_x, dim=0) if val_blocks_x else torch.empty(0, *samples_x.shape[1:])
+    val_y = torch.cat(val_blocks_y, dim=0) if val_blocks_y else torch.empty(0, *samples_y.shape[1:])
+    test_x = torch.cat(test_blocks_x, dim=0) if test_blocks_x else torch.empty(0, *samples_x.shape[1:])
+    test_y = torch.cat(test_blocks_y, dim=0) if test_blocks_y else torch.empty(0, *samples_y.shape[1:])
+
+    print(f"训练集样本数: {len(train_x)}")
+    print(f"验证集样本数: {len(val_x)}")
+    print(f"测试集样本数: {len(test_x)}")
+
+    # 删除不再需要的数据以释放内存
+    del samples_x, samples_y, remaining_x, remaining_y
+
+    # 创建数据集
+    train_dataset = TensorDataset(train_x, train_y)
+    valid_dataset = TensorDataset(val_x, val_y)
+    test_dataset = TensorDataset(test_x, test_y)
+
+    del train_x, val_x, test_x, train_y, val_y, test_y
+
+    # 确保目录存在
+    save_directory = '../clean_power_his60_future6_7features_diffblock'
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+
+    # 保存数据集
+    torch.save(train_dataset.tensors, os.path.join(save_directory, 'train_dataset.pt'))
+    torch.save(valid_dataset.tensors, os.path.join(save_directory, 'valid_dataset.pt'))
+    torch.save(test_dataset.tensors, os.path.join(save_directory, 'test_dataset.pt'))
+
+    # 保存归一化向量 (Max 和 Min)
+    torch.save(Max, os.path.join(save_directory, 'max_values.pt'))
+    torch.save(Min, os.path.join(save_directory, 'min_values.pt'))
+    torch.save(site_adj, os.path.join(save_directory, 'adj_matrix.pt'))
+
+    # 创建 DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)  # 训练集可以 shuffle
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)  # 验证集不 shuffle
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # 测试集不 shuffle
+
+    return train_loader, valid_loader, test_loader
+
+# 不差分验证和测试，跟差分对应数据量
+def build_sample_Nodiffblock(data, his=60, future=24, batch_size=32):
+    lenght = len(data[1])
+    site = len(data)
+    sample = []
+    Y = []
+    i = 0
+
+    while i < lenght - future - his - his:
+        sub_sample = []
+        sub_y = []
+        valid = True  # 标记当前窗口有用
+        j = 1
+        while j <= site:
+            # 检查窗口内所有数据点是否有效
+            for k in range(i, i + his + future):
+                if not is_null_sample(data[j][k]):
+                    valid = False
+                    break
+            if not valid:
+                break
+            columns_to_select = [3, 4, 5, 6, 7, 8, 12]  # 选择7个特征
+            sub_sample_x = np.array(data[j][i:i + his, columns_to_select].astype(np.float32))
+            sub_sample.append(sub_sample_x)
+            future_data = np.array(data[j][i + his:i + his + future, [columns_to_select[-1]]].astype(np.float32))
+            sub_y.append(future_data)
+            j = j + 1
+        if valid:
+            sub_sample = np.stack(sub_sample, axis=0)
+            sub_y = np.stack(sub_y, axis=0)
+            sample.append(sub_sample)
+            Y.append(sub_y)
+        i = i + 1
+
+    sample = np.stack(sample, axis=0)
+    Y = np.stack(Y, axis=0)
+    del data
+
+    # 将数据转换为 PyTorch Tensors
+    samples_x = torch.tensor(sample, dtype=torch.float32)
+    samples_y = torch.tensor(Y, dtype=torch.float32)
+    print(f"总样本形状: {samples_x.shape}")
+    del sample, Y
+
+    total_samples = len(samples_x)
+
+    # 训练集：前 70%
+    train_end = int(total_samples * 0.7)
+    train_x = samples_x[:train_end-his]
+    train_y = samples_y[:train_end-his]
+
+    # 剩余部分（30%）用于验证和测试
+    remaining_x = samples_x[train_end:]
+    remaining_y = samples_y[train_end:]
+    remaining_count = len(remaining_x)
+    print(f"测试和验证样本可用数量: {remaining_count}")
+
+    # 将剩余部分划分为 10 个不相交的连续块
+    block_size = remaining_count // 10  # 向下取整，确保不重叠
+    # 如果不能整除，最后几个样本会被丢弃（可选：也可分配给最后一块，但为严格不相交，这里截断）
+    usable_count = block_size * 10
+    remaining_x = remaining_x[:usable_count]
+    remaining_y = remaining_y[:usable_count]
+
+    # 重塑为 (10, block_size, ...)
+    val_blocks_x = []
+    val_blocks_y = []
+    test_blocks_x = []
+    test_blocks_y = []
+
+    for idx in range(10):
+        start = idx * block_size
+        end = start + block_size
+        block_x = remaining_x[start:end-his]
+        block_y = remaining_y[start:end-his]
+        if idx < 5:  # 前5验证
+            val_blocks_x.append(block_x)
+            val_blocks_y.append(block_y)
+        else:
+            test_blocks_x.append(block_x)
+            test_blocks_y.append(block_y)
+
+    # 合并所有验证块和测试块
+    val_x = torch.cat(val_blocks_x, dim=0) if val_blocks_x else torch.empty(0, *samples_x.shape[1:])
+    val_y = torch.cat(val_blocks_y, dim=0) if val_blocks_y else torch.empty(0, *samples_y.shape[1:])
+    test_x = torch.cat(test_blocks_x, dim=0) if test_blocks_x else torch.empty(0, *samples_x.shape[1:])
+    test_y = torch.cat(test_blocks_y, dim=0) if test_blocks_y else torch.empty(0, *samples_y.shape[1:])
+
+    print(f"训练集样本数: {len(train_x)}")
+    print(f"验证集样本数: {len(val_x)}")
+    print(f"测试集样本数: {len(test_x)}")
+
+    # 删除不再需要的数据以释放内存
+    del samples_x, samples_y, remaining_x, remaining_y
+
+    # 创建数据集
+    train_dataset = TensorDataset(train_x, train_y)
+    valid_dataset = TensorDataset(val_x, val_y)
+    test_dataset = TensorDataset(test_x, test_y)
+
+    del train_x, val_x, test_x, train_y, val_y, test_y
+
+    # 确保目录存在
+    save_directory = '../clean_power_his60_future24_7features_Nodiffblock'
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+
+    # 保存数据集
+    torch.save(train_dataset.tensors, os.path.join(save_directory, 'train_dataset.pt'))
+    torch.save(valid_dataset.tensors, os.path.join(save_directory, 'valid_dataset.pt'))
+    torch.save(test_dataset.tensors, os.path.join(save_directory, 'test_dataset.pt'))
+
+    # 保存归一化向量 (Max 和 Min)
+    torch.save(Max, os.path.join(save_directory, 'max_values.pt'))
+    torch.save(Min, os.path.join(save_directory, 'min_values.pt'))
+    torch.save(site_adj, os.path.join(save_directory, 'adj_matrix.pt'))
+
+    # 创建 DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)  # 训练集可以 shuffle
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)  # 验证集不 shuffle
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # 测试集不 shuffle
+
+    return train_loader, valid_loader, test_loader
 
 
 if __name__ == '__main__':
@@ -419,9 +646,11 @@ if __name__ == '__main__':
     # 创建时间窗口数据，创建的是历史60步，未来6步的数据，但是只是使用部分未来时间步
     # dir_data = "../sdwpf_kddcup/Cleaned_data_with_power_original_data_with_missing.csv"
     dir_data = "../sdwpf_kddcup/Cleaned_data_with_power.csv"
+    # dir_data = "../sdwpf_kddcup/unclean_data.csv"
     dir_site = "../sdwpf_kddcup/sdwpf_baidukddcup2022_turb_location.csv"
     dict, site_adj, Max, Min = creat_dict(dir_data=dir_data, dir_site=dir_site, site=134)
-    train_loader, valid_loader, test_loader = build_sample(dict, his=60, future=60, batch_size=32)
+
+    train_loader, valid_loader, test_loader = build_sample_Nodiffblock(dict, his=60, future=24, batch_size=32)
     # train_loader, valid_loader, test_loader, season_train_loader = build_sample_season(dict, his=60, future=6, batch_size=32)
     # 设备配置
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -430,5 +659,4 @@ if __name__ == '__main__':
         break  # 获取第一个批次
     print(inputs.shape)
     print(targets.shape)
-
 

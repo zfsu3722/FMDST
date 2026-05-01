@@ -1,6 +1,6 @@
 <div align="center">
 
-# FMDST: Fusion Multi-site Dual-Spatiotemporal Networks for Wind Power Forecasting
+# The code of the paper presenting FMDST model accepted by ICIC2026.
 
 </div>
 
